@@ -1,0 +1,502 @@
+<title>Ballgreifer 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
+<style>
+/* Layout: Werkstatt-Zeichnung. Links die 3D-Buehne mit Positionsnummern wie in einer Explosionszeichnung, rechts die Stueckliste. */
+:root{
+  --bg:#E6EBF1; --stage:#F5F7FA; --panel:#FFFFFF; --ink:#14202E; --muted:#566475; --line:#C7D1DC;
+  --accent:#1D5BB8; --accent-ink:#FFFFFF; --soft:#EDF2F8; --edge:#1B2733; --floor:#B9C4D0;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"Barlow","Segoe UI",Roboto,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0E151E; --stage:#141D29; --panel:#19232F; --ink:#E6ECF3; --muted:#97A6B8; --line:#2D3B4D;
+  --accent:#74ABFF; --accent-ink:#0B1220; --soft:#202C3B; --edge:#C9D6E4; --floor:#33414F; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0E151E; --stage:#141D29; --panel:#19232F; --ink:#E6ECF3; --muted:#97A6B8; --line:#2D3B4D;
+  --accent:#74ABFF; --accent-ink:#0B1220; --soft:#202C3B; --edge:#C9D6E4; --floor:#33414F; color-scheme:dark }
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+*{box-sizing:border-box}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;padding-block:12px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.stage{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;background:var(--stage);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.view{position:relative;min-height:0}
+.view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.bal{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;min-width:22px;height:22px;padding:0 5px;border-radius:11px;
+  border:1.5px solid var(--ink);background:var(--panel);color:var(--ink);font-family:var(--display);font-weight:600;font-size:14px;line-height:19px;text-align:center;white-space:nowrap}
+.bal.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);z-index:2}
+.views{position:absolute;left:10px;top:10px;display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:4px;padding:5px 10px;cursor:pointer;font-family:var(--display);font-weight:500;font-size:15px;letter-spacing:.02em}
+.chip:hover{border-color:var(--accent)}
+.hint{position:absolute;right:10px;bottom:8px;color:var(--muted);font-size:12px;pointer-events:none}
+#nogl{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:10px 12px;border-top:1px solid var(--line);background:var(--panel)}
+.bar label{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.bar input[type=range]{width:120px;accent-color:var(--accent)}
+.bar input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.go{background:var(--accent);color:var(--accent-ink);border:0;border-radius:4px;padding:8px 16px;cursor:pointer;font-family:var(--display);font-weight:600;font-size:17px;letter-spacing:.03em;min-width:104px}
+
+.panel{min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.head{padding:14px 16px 10px}
+h1{margin:0;font-family:var(--display);font-weight:600;font-size:28px;line-height:1.1;letter-spacing:.01em}
+.sub{margin:2px 0 0;color:var(--muted);font-size:13px}
+.tabs{display:flex;border-bottom:1px solid var(--line);padding:0 8px}
+.tab{flex:1;background:none;border:0;border-bottom:3px solid transparent;padding:9px 4px;cursor:pointer;color:var(--muted);font-family:var(--display);font-weight:600;font-size:17px;letter-spacing:.03em}
+.tab[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.pane{flex:1;min-height:0;overflow:auto;padding:12px 16px 18px}
+h2{margin:14px 0 6px;font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+h2:first-child{margin-top:2px}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:26px 14px minmax(0,1fr) auto;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:8px 4px;cursor:pointer}
+.row:hover{background:var(--soft)}
+.row .n{font-family:var(--display);font-weight:600;font-size:16px;text-align:center;border:1.5px solid var(--ink);border-radius:11px;height:22px;line-height:19px}
+.row .sw{width:14px;height:14px;border-radius:2px;border:1px solid var(--line)}
+.row .nm{font-weight:500;min-width:0}
+.row .q{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+li.sel .row{background:var(--soft)}
+li.sel .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.det{display:none;padding:8px 6px 12px 38px;border-bottom:1px solid var(--line);font-size:14px}
+li.sel .det{display:block}
+.det dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px}
+.det dt{color:var(--muted)}
+.det dd{margin:0}
+.steptop{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.count{font-family:var(--display);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+h3{margin:4px 0 8px;font-family:var(--display);font-weight:600;font-size:23px;line-height:1.15;text-wrap:balance}
+.pane p{margin:0 0 10px;max-width:60ch}
+.pane ol{margin:0 0 12px;padding-left:20px;max-width:60ch}
+.pane ol li{margin-bottom:6px}
+.need{margin:0 0 12px;padding:8px 10px;background:var(--soft);border-radius:4px;font-size:14px}
+.nav{display:flex;gap:8px;margin-top:6px}
+.nav button{flex:1;border:1px solid var(--line);background:var(--panel);border-radius:4px;padding:9px;cursor:pointer;font-family:var(--display);font-weight:600;font-size:17px;letter-spacing:.03em}
+.nav button.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.nav button:disabled{opacity:.4;cursor:default}
+.note{color:var(--muted);font-size:13px}
+
+@media (max-width:820px){
+  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,56%) minmax(0,1fr);gap:10px;padding-block:10px}
+  .head{padding:10px 14px 6px} h1{font-size:23px}
+  .bar{gap:6px 14px;padding:8px 10px} .bar input[type=range]{width:86px}
+  .hint{display:none}
+}
+</style>
+
+<div class="app">
+  <section class="stage" aria-label="3D-Ansicht">
+    <div class="view" id="view">
+      <canvas id="c"></canvas>
+      <div id="labels"></div>
+      <div class="views">
+        <button class="chip" data-view="greifer">Greifer</button>
+        <button class="chip" data-view="innen">Innenleben</button>
+        <button class="chip" data-view="schlaeger">Ganzer Schläger</button>
+      </div>
+      <div class="hint">Ziehen: drehen · Mausrad oder zwei Finger: zoomen · Teil antippen: Info</div>
+      <div id="nogl" hidden>Die 3D-Ansicht braucht WebGL. Dieser Browser stellt es gerade nicht bereit.</div>
+    </div>
+    <div class="bar">
+      <button class="go" id="grip">Öffnen</button>
+      <label>Explosion <input type="range" id="explode" min="0" max="100" value="0"></label>
+      <label><input type="checkbox" id="xray" checked> Gehäuse durchsichtig</label>
+      <label><input type="checkbox" id="nums" checked> Nummern</label>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="head">
+      <h1>Ballgreifer für die Schlägerspitze</h1>
+      <p class="sub">Entwurf v0.1 · alle Maße in mm · Schlägermaße noch geschätzt</p>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-teile" aria-selected="true" data-tab="teile">Teile</button>
+      <button class="tab" role="tab" id="tab-bau" aria-selected="false" data-tab="bau">Zusammenbau</button>
+      <button class="tab" role="tab" id="tab-funktion" aria-selected="false" data-tab="funktion">Funktion</button>
+    </div>
+    <div class="pane" id="pane-teile"></div>
+    <div class="pane" id="pane-bau" hidden></div>
+    <div class="pane" id="pane-funktion" hidden>
+      <h3>So greift er den Ball</h3>
+      <ol>
+        <li><b>Taster drücken.</b> Der Pico schickt dem Servo den neuen Winkel.</li>
+        <li><b>Der Servo dreht das Horn</b> um etwa 60°.</li>
+        <li><b>Die Koppelstange zieht den Schieber</b> 5,6 mm nach oben, zum Schläger hin.</li>
+        <li><b>Der Schieber nimmt alle vier Krallen mit.</b> Jede Kralle hat innen eine Nase, die in einem Schlitz des Schiebers sitzt. Sie schwenkt 20° um ihre Gelenkschraube.</li>
+        <li><b>Die Spitzen schließen unter der Ballmitte.</b> Der Ball liegt wie in einem Korb und fällt nicht heraus, auch wenn der Servo kaum Kraft aufbringt.</li>
+      </ol>
+      <p>Beim Aufsetzen drückt der Ball gegen den Anschlagring. Die Kraft geht über das Gehäuse in den Rahmen, der Servo bleibt entlastet.</p>
+      <div class="nav"><button class="pri" id="play">Bewegung abspielen</button></div>
+      <p class="note" style="margin-top:12px">Offen: etwa 100 mm lichte Weite. Geschlossen: Spitzen auf einem Kreis von 58 mm, der Ball hat 67 mm.</p>
+    </div>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const DEG=Math.PI/180, V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Masse aus cad/greifer.scad
+const K={pivotR:26,pivotZ:-11,arm:16,swing:20,spH:9.3,lugHole:4,linkL:22,ys:-5,hornR:5.5,lugX:2,R:105,zsf:-69};
+K.zs=K.pivotZ-K.spH/2-K.lugHole-K.linkL;
+K.zcf=K.zsf-5-K.R;                       // Kruemmungsmittelpunkt der Rahmenspitze
+const HOOP={a:133,b:168.5,d:12}; HOOP.zc=K.zsf-5-HOOP.b;
+
+const D=/*MESHDATA*/{};
+function geo(name){
+  const bin=atob(D[name]||''), n=bin.length>>1, a=new Float32Array(n);
+  for(let i=0;i<n;i++){ let v=bin.charCodeAt(2*i)|(bin.charCodeAt(2*i+1)<<8); if(v>32767)v-=65536; a[i]=v/100; }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(a,3)); g.computeVertexNormals(); return g;
+}
+
+let renderer;
+try{ renderer=new THREE.WebGLRenderer({canvas:$('#c'),antialias:true}); }
+catch(e){ $('#nogl').hidden=false; }
+if(!renderer){ buildPanels(); return; }
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.outputEncoding=THREE.sRGBEncoding;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(32,1,5,6000);
+const controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.enableDamping=!reduce; controls.dampingFactor=.12; controls.minDistance=60; controls.maxDistance=3000;
+scene.add(new THREE.HemisphereLight(0xffffff,0x8a94a6,.85));
+const sun=new THREE.DirectionalLight(0xffffff,.9); sun.position.set(300,500,-400); scene.add(sun);
+const fill=new THREE.DirectionalLight(0xffffff,.3); fill.position.set(-400,100,300); scene.add(fill);
+// Modellkoordinaten: +z zeigt vom Schlaeger zum Ball. Fuer die Ansicht zeigt +z nach unten.
+const root=new THREE.Group(); root.rotation.x=Math.PI/2; scene.add(root);
+
+// ---------------------------------------------------------------- Teileverwaltung
+const parts={}, order=[];
+function part(def){ const p=Object.assign({items:[],mats:[],lines:[],meshes:[],show:true},def); parts[p.id]=p; order.push(p); return p; }
+const lin=c=>new THREE.Color(c).convertSRGBToLinear();
+function mat(p,color,o){ const m=new THREE.MeshStandardMaterial(Object.assign({color:lin(color),roughness:.78,metalness:.04,flatShading:true},o||{})); p.mats.push(m); return m; }
+function item(p,obj,ex,loc){ loc=loc||[0,0,0]; root.add(obj); p.items.push({obj:obj,base:obj.position.clone(),ex:V(ex[0],ex[1],ex[2]),loc:V(loc[0],loc[1],loc[2])});
+  obj.traverse(o=>{ if(o.isMesh){ o.userData.part=p; p.meshes.push(o); } }); return obj; }
+function edged(p,g,m){ const me=new THREE.Mesh(g,m); const lm=new THREE.LineBasicMaterial({color:0x000000,transparent:true}); p.lines.push(lm);
+  me.add(new THREE.LineSegments(new THREE.EdgesGeometry(g,32),lm)); return me; }
+function box(p,m,x0,x1,y0,y1,z0,z1){ const me=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,y1-y0,z1-z0),m); me.position.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2); return me; }
+function anchor(p,parent,x,y,z){ const a=new THREE.Object3D(); a.position.set(x,y,z); parent.add(a); p.anchor=a; }
+function grp(){ const g=new THREE.Group(); for(let i=0;i<arguments.length;i++) g.add(arguments[i]); return g; }
+
+// ---------------------------------------------------------------- Stueckliste
+const HZ=130; // Explosionsweg des Gehaeuses
+let p,g,m,o;
+
+p=part({id:'sattel',pos:1,name:'Sattel',kind:'druck',qty:1,color:0x2E8C83,
+  wo:'Außen auf der Rahmenspitze, über dem Kopfschutzband.',wie:'Die 6 mittleren Längssaiten laufen durch Sattel und Rahmen. Drei Saitenschlaufen spannen ihn fest.'});
+o=item(p,edged(p,geo('sattel'),mat(p,p.color)),[0,0,0]); anchor(p,o,-30,-21,-82);
+
+p=part({id:'gehaeuse',pos:2,name:'Gehäuse mit Greiferbasis',kind:'druck',qty:1,color:0x8794A6,
+  wo:'Wird von unten über den Sattel gestülpt.',wie:'4 Sattelschrauben M3×8 seitlich durch die Schürzen.'});
+o=item(p,edged(p,geo('gehaeuse'),mat(p,p.color)),[0,0,HZ]); anchor(p,o,34,-23.5,-36);
+
+p=part({id:'kralle',pos:3,name:'Kralle',kind:'druck',qty:4,color:0xE2552F,
+  wo:'In den vier Schlitzen der Greiferbasis. Die runde Nase am Innenhebel sitzt im Schieber.',wie:'Je eine Gelenkschraube M3×25. Nur anlegen, die Kralle muss frei schwingen.'});
+const fingers=[]; g=geo('kralle'); m=mat(p,p.color);
+for(let k=0;k<4;k++){ const az=new THREE.Group(); az.rotation.z=k*Math.PI/2; const pv=new THREE.Group(); pv.position.set(K.pivotR,0,K.pivotZ);
+  const me=edged(p,g,m); me.position.set(-K.pivotR,0,-K.pivotZ); pv.add(me); az.add(pv); fingers.push(pv);
+  item(p,az,[0,0,HZ],[35*Math.cos(k*Math.PI/2),35*Math.sin(k*Math.PI/2),0]); if(k===3) anchor(p,me,39,0,34); }
+
+p=part({id:'spule',pos:4,name:'Schieber',kind:'druck',qty:1,color:0xF2A21B,
+  wo:'In der runden Tasche in der Mitte der Greiferbasis.',wie:'Wird von oben eingesetzt. Die vier Nasen der Krallen halten ihn.'});
+const spool=item(p,edged(p,geo('spule'),mat(p,p.color)),[0,0,105]); anchor(p,spool,0,-13,0);
+
+p=part({id:'koppel',pos:5,name:'Koppelstange',kind:'druck',qty:1,color:0xB31942,
+  wo:'Zwischen Servohorn und der Lasche oben am Schieber.',wie:'2 Schrauben M2×8. Sie schneiden sich ihr Gewinde selbst.'});
+const link=item(p,edged(p,geo('koppel'),mat(p,p.color)),[0,0,90]); anchor(p,link,3,0,11);
+
+p=part({id:'anschlag',pos:6,name:'Anschlagring',kind:'druck',qty:1,color:0x3A4048,
+  wo:'Unten in der Mitte der Greiferbasis.',wie:'Aufkleben. Der Ball stößt beim Aufsetzen hier an.'});
+o=item(p,edged(p,geo('anschlag'),mat(p,p.color)),[0,0,HZ],[0,0,22]); anchor(p,o,0,-17,4);
+
+p=part({id:'deck',pos:7,name:'Elektronikträger',kind:'druck',qty:1,color:0xC9A76B,
+  wo:'Liegt im Gehäuse auf vier Auflagen, über dem Servo.',wie:'Einlegen, ein Stück Schaumstoff obenauf. Der Sattel hält ihn unten.'});
+const deck=item(p,edged(p,geo('deck'),mat(p,p.color)),[0,0,30]); anchor(p,deck,-27,-20,-59);
+
+p=part({id:'halter',pos:8,name:'Tasterhalter',kind:'druck',qty:1,color:0x8794A6,
+  wo:'Am Schaft direkt über dem Griff.',wie:'2 Kabelbinder um den Schaft.'});
+const halter=new THREE.Group(); halter.matrixAutoUpdate=false;
+const HB=new THREE.Matrix4().makeBasis(V(0,0,-1),V(1,0,0),V(0,-1,0)); // Halter liegt auf der Schaftseite
+const hInner=new THREE.Group(); hInner.applyMatrix4(HB); hInner.add(edged(p,geo('taster'),mat(p,p.color)));
+halter.matrixAutoUpdate=true; halter.add(hInner); halter.position.set(0,-8,-556);
+item(p,halter,[0,0,0]); anchor(p,hInner,0,10,4);
+
+p=part({id:'servo',pos:9,name:'Servo MG90S',kind:'kauf',qty:1,color:0x2F62C9,
+  wo:'Im Servobett des Gehäuses, die Achse zeigt zur Mitte.',wie:'Die beiden Laschen gleiten in Nuten. Ein Kabelbinder durch den Schlitz im Bett hält ihn.'});
+o=item(p,edged(p,geo('servo'),mat(p,p.color)),[0,0,75]); anchor(p,o,-21,0.3,-48);
+
+p=part({id:'horn',pos:10,name:'Servohorn',kind:'kauf',qty:1,color:0xEDEDED,
+  wo:'Auf der Servoachse. Liegt dem Servo bei.',wie:'Aufstecken, mit der kleinen Schraube sichern. Hinter dem genutzten Loch abschneiden.'});
+const horn=item(p,edged(p,geo('horn'),mat(p,p.color)),[0,0,75]); horn.position.set(K.lugX-1.6,K.ys,K.zs); p.items[0].base.copy(horn.position); anchor(p,horn,1.6,9,0);
+
+p=part({id:'pico',pos:11,name:'Raspberry Pi Pico',kind:'kauf',qty:1,color:0x2E9E4F,
+  wo:'Oben auf dem Elektronikträger. Micro-USB zeigt zur Schmalseite mit den zwei Ausschnitten.',wie:'Doppelseitiges Klebeband.'});
+m=mat(p,p.color);
+o=item(p,grp(box(p,m,-17.6,33.4,-20.4,0.6,-61.2,-60),box(p,mat(p,0xB8BEC6),28.4,34.4,-13.7,-6.1,-63.9,-61.2),box(p,mat(p,0x22262B),4,11,-13.5,-6.5,-62.1,-61.2)),[0,0,30]); anchor(p,o,8,-10,-62);
+
+p=part({id:'lader',pos:12,name:'Lademodul TP4056 (USB-C)',kind:'kauf',qty:1,color:0x3D8BE0,
+  wo:'Auf dem Elektronikträger neben dem Pico. USB-C zeigt zur selben Schmalseite.',wie:'Doppelseitiges Klebeband.'});
+o=item(p,grp(box(p,mat(p,p.color),5.4,33.4,3.4,20.4,-61.2,-60),box(p,mat(p,0xB8BEC6),27,34.4,7.4,16.4,-64.4,-61.2)),[0,0,30]); anchor(p,o,19,12,-62);
+
+p=part({id:'stepup',pos:13,name:'Step-Up-Wandler 5 V',kind:'kauf',qty:1,color:0x8B4FC4,
+  wo:'Auf dem Elektronikträger hinter dem Lademodul.',wie:'Doppelseitiges Klebeband.'});
+o=item(p,grp(box(p,mat(p,p.color),-30,-10,4,19,-61.2,-60),box(p,mat(p,0x4A4F57),-24,-17,8,15,-64.4,-61.2)),[0,0,30]); anchor(p,o,-20,12,-62);
+
+p=part({id:'lipo',pos:14,name:'LiPo-Akku 3,7 V',kind:'kauf',qty:1,color:0xAEB6C0,
+  wo:'Unter dem Elektronikträger, direkt über dem Servo.',wie:'Mit Klebeband an die Unterseite des Trägers.'});
+o=item(p,grp(box(p,mat(p,p.color,{metalness:.35,roughness:.5}),-18,18,-15,15,-58,-52.4)),[0,0,45]); anchor(p,o,0,-15,-55);
+
+p=part({id:'schalter',pos:15,name:'Schiebeschalter',kind:'kauf',qty:1,color:0x2B3038,
+  wo:'In der Wandöffnung der Schmalseite ohne USB-Ausschnitte.',wie:'Einkleben. Schaltet den Akku ein und aus.'});
+o=item(p,grp(box(p,mat(p,p.color),-34.6,-29.6,-9.4,-0.8,-66.4,-62.6),box(p,mat(p,0xD9DDE2),-38.2,-34.6,-6.6,-4.2,-65.6,-63.4)),[0,0,HZ],[-22,0,0]); anchor(p,o,-38,-5,-64.5);
+
+p=part({id:'taster',pos:16,name:'Taster 12 × 12',kind:'kauf',qty:1,color:0xD23B3B,
+  wo:'Im Tasterhalter am Schaft.',wie:'Einstecken. Zwei Adern laufen am Rahmen entlang zum Gehäuse.'});
+const tInner=new THREE.Group(); tInner.applyMatrix4(HB);
+tInner.add(box(p,mat(p,0x22262B),-6,6,-6,6,5.2,8.8)); o=new THREE.Mesh(new THREE.CylinderGeometry(4.6,4.6,3.6,24),mat(p,p.color)); o.rotation.x=Math.PI/2; o.position.set(0,0,10.6); tInner.add(o);
+const tOut=new THREE.Group(); tOut.add(tInner); tOut.position.copy(halter.position); item(p,tOut,[0,0,0],[0,-28,0]); anchor(p,tInner,0,0,13);
+
+p=part({id:'bolzen',pos:17,name:'Gelenkschraube M3×25',kind:'kauf',qty:4,color:0xC3C8CF,
+  wo:'Quer durch jede Kralle, von der Seite durch den Kanal in der Greiferbasis.',wie:'Dreht sich ins Kunststoff-Gewinde. Nur anlegen.'});
+m=mat(p,p.color,{metalness:.6,roughness:.35});
+for(let k=0;k<4;k++){ const az=new THREE.Group(); az.rotation.z=k*Math.PI/2;
+  const sh=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,25,14),m); sh.position.set(K.pivotR,-2.5,K.pivotZ);
+  const hd=new THREE.Mesh(new THREE.CylinderGeometry(2.75,2.75,3,14),m); hd.position.set(K.pivotR,11.5,K.pivotZ); az.add(sh); az.add(hd);
+  const c=Math.cos(k*Math.PI/2+Math.PI/2), s=Math.sin(k*Math.PI/2+Math.PI/2);
+  item(p,az,[0,0,HZ],[34*c,34*s,0]); if(k===3) anchor(p,hd,0,3,0); }
+
+p=part({id:'sschraube',pos:18,name:'Sattelschraube M3×8 mit Mutter',kind:'kauf',qty:4,color:0xC3C8CF,
+  wo:'Seitlich durch die Schürzen des Gehäuses in den Sattel.',wie:'Die Muttern stecken in den Taschen des Sattels.'});
+m=mat(p,p.color,{metalness:.6,roughness:.35});
+[[-20,-1],[20,-1],[-20,1],[20,1]].forEach((q,i)=>{ const sg=new THREE.Group();
+  const sh=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,8,14),m); sh.position.set(q[0],q[1]*19.1,-75);
+  const hd=new THREE.Mesh(new THREE.CylinderGeometry(2.75,2.75,2,14),m); hd.position.set(q[0],q[1]*24.1,-75); sg.add(sh); sg.add(hd);
+  item(p,sg,[0,0,0],[0,q[1]*26,0]); if(i===1) anchor(p,hd,0,-2,0); });
+
+p=part({id:'kabel',pos:19,name:'Tasterkabel, 2-adrig',kind:'kauf',qty:1,color:0x30353D,
+  wo:'Vom Gehäuse an der Rahmenseite entlang bis zum Taster.',wie:'Kabelbinder alle 10 bis 15 cm.'});
+(function(){ const pts=[V(-33,-16.2,-67),V(-40,-15.5,-70),V(-44,-14,-82)];
+  for(let t=-0.36;t>-2.74;t-=0.14) pts.push(V((HOOP.a-6)*Math.sin(t),-13.6,HOOP.zc+(HOOP.b-6)*Math.cos(t)));
+  pts.push(V(-34,-13.6,-455),V(-14,-13.6,-535),V(-3,-15,-543),V(0,-15.5,-546));
+  o=item(p,new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),160,1.4,8,false),mat(p,p.color)),[0,0,0]); anchor(p,o,-127,-14,HOOP.zc); })();
+
+// Umgebung: Schlaeger, Saiten, Ball, Boden (ohne Positionsnummer)
+p=part({id:'schlaeger',name:'Schläger',color:0x5E6672});
+(function(){ m=mat(p,p.color,{flatShading:false,roughness:.6}); const sg=new THREE.Group();
+  const sh=new THREE.Shape(); sh.absellipse(0,HOOP.zc,HOOP.a,HOOP.b,0,Math.PI*2,false,0);
+  const ho=new THREE.Path(); ho.absellipse(0,HOOP.zc,HOOP.a-HOOP.d,HOOP.b-HOOP.d,0,Math.PI*2,true,0); sh.holes.push(ho);
+  const hoop=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:24.5,bevelEnabled:false,curveSegments:72}),m); hoop.rotation.x=Math.PI/2; hoop.position.y=12.25; sg.add(hoop);
+  [-1,1].forEach(s=>{ const a=V(s*52,0,-391), b=V(s*11,0,-547), d=b.clone().sub(a);
+    const bm=new THREE.Mesh(new THREE.BoxGeometry(12,22,d.length()),m); bm.position.copy(a.clone().add(b).multiplyScalar(.5)); bm.rotation.y=Math.atan2(d.x,d.z); sg.add(bm); });
+  sg.add(box(p,m,-15,15,-11,11,-566,-543));
+  const gm=mat(p,0x23272E,{flatShading:false}); const gr=new THREE.Mesh(new THREE.CylinderGeometry(16.5,16.5,194,8),gm); gr.rotation.x=Math.PI/2; gr.scale.z=.86; gr.position.z=-663; sg.add(gr);
+  const cap=new THREE.Mesh(new THREE.CylinderGeometry(19,19,6,8),gm); cap.rotation.x=Math.PI/2; cap.scale.z=.86; cap.position.z=-761; sg.add(cap);
+  item(p,sg,[0,0,0]); })();
+
+p=part({id:'saiten',name:'Saiten',color:0xD9C24A});
+(function(){ const sg=new THREE.Group(), v=[], ai=HOOP.a-HOOP.d, bi=HOOP.b-HOOP.d;
+  for(let i=0;i<16;i++){ const x=(i-7.5)*10.5, h=bi*Math.sqrt(1-x*x/(ai*ai)); v.push(x,0,HOOP.zc-h, x,0,HOOP.zc+h); }
+  for(let j=0;j<19;j++){ const z=HOOP.zc-118+j*13, w=ai*Math.sqrt(1-Math.pow((z-HOOP.zc)/bi,2)); v.push(-w,0,z, w,0,z); }
+  const lg=new THREE.BufferGeometry(); lg.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+  const lm=new THREE.LineBasicMaterial({color:lin(p.color),transparent:true}); p.lines.push(lm); sg.add(new THREE.LineSegments(lg,lm));
+  // die 6 mittleren Laengssaiten laufen durch Rahmen und Sattel; 3 Schlaufen liegen in der Nut
+  m=mat(p,p.color,{flatShading:false}); const rr=K.R+3, top=x=>K.zcf+Math.sqrt(rr*rr-x*x);
+  [-26.25,-15.75,-5.25,5.25,15.75,26.25].forEach(x=>{ const c=new THREE.LineCurve3(V(x,0,-108),V(x,0,top(x))); sg.add(new THREE.Mesh(new THREE.TubeGeometry(c,1,.75,8,false),m)); });
+  [[-26.25,-15.75],[-5.25,5.25],[15.75,26.25]].forEach(q=>{ const pts=[]; for(let i=0;i<=8;i++){ const x=q[0]+(q[1]-q[0])*i/8; pts.push(V(x,0,top(x))); }
+    sg.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),12,.75,8,false),m)); });
+  item(p,sg,[0,0,0]); })();
+
+p=part({id:'ball',name:'Tennisball',color:0xC9DA2A});
+const ZC=2+33.5;
+item(p,new THREE.Mesh(new THREE.SphereGeometry(33.5,48,32),mat(p,p.color,{flatShading:false,roughness:.95})),[0,0,HZ],[0,0,60]).position.z=ZC; p.items[0].base.set(0,0,ZC);
+p=part({id:'boden',name:'Boden',color:0x999999});
+const floorMat=new THREE.MeshBasicMaterial({color:0x999999,transparent:true,opacity:.55,side:THREE.DoubleSide});
+o=new THREE.Mesh(new THREE.CircleGeometry(150,64),floorMat); o.position.z=ZC+33.6; item(p,o,[0,0,HZ],[0,0,60]); p.meshes.length=0;
+
+// ---------------------------------------------------------------- Zustand
+const S={theta:0,E:0,xray:true,nums:true,sel:null,tab:'teile',step:0,focus:null};
+const drive={spool:parts.spule.items[0],horn:parts.horn.items[0],link:parts.koppel.items[0]};
+
+function pose(){
+  const th=S.theta, zsp=K.pivotZ+K.arm*Math.sin((th-K.swing/2)*DEG), zl=zsp-K.spH/2-K.lugHole;
+  const f=a=>Math.hypot(K.ys+K.hornR*Math.cos(a),K.zs-K.hornR*Math.sin(a)-zl)-K.linkL;
+  let phi=Math.asin(Math.max(-1,Math.min(1,(K.zs-(zl-K.linkL))/K.hornR)));
+  for(let i=0;i<6;i++){ const d=(f(phi+1e-4)-f(phi))/1e-4; if(Math.abs(d)<1e-9)break; phi-=f(phi)/d; }
+  const py=K.ys+K.hornR*Math.cos(phi), pz=K.zs-K.hornR*Math.sin(phi);
+  fingers.forEach(g=>{ g.rotation.y=th*DEG; });
+  drive.spool.base.set(0,0,zsp);
+  drive.horn.obj.rotation.x=-phi;
+  drive.link.base.set(K.lugX,py,pz); drive.link.obj.rotation.x=Math.atan2(py,zl-pz);
+  layout();
+}
+function layout(){ const st=(S.tab==='bau')?STEPS[S.step]:null;
+  order.forEach(p=>{ const o=st&&st.off&&st.off[p.id], k=S.E+((st&&st.loc&&st.loc[p.id])||0);
+    p.items.forEach(it=>{ it.obj.position.copy(it.base).addScaledVector(it.ex,S.E).addScaledVector(it.loc,k); if(o){ it.obj.position.x+=o[0]; it.obj.position.y+=o[1]; it.obj.position.z+=o[2]; } }); }); }
+
+const accentCol=new THREE.Color();
+function style(){
+  order.forEach(p=>{
+    const dim=(S.sel&&S.sel!==p.id&&(!S.focus||S.focus.indexOf(p.id)<0));
+    let op=(p.id==='gehaeuse'&&S.xray?.17:1)*(dim?.2:1);
+    const hot=(S.sel===p.id)||(S.focus&&S.focus.indexOf(p.id)>=0&&S.tab==='bau');
+    p.mats.forEach(m=>{ m.transparent=op<1; m.opacity=op; m.depthWrite=op>.5; m.emissive.copy(accentCol).multiplyScalar(hot?.28:0); m.needsUpdate=true; });
+    p.lines.forEach(l=>{ l.opacity=Math.max(.12,Math.min(1,op*1.6))*(p.id==='saiten'?.7:.55); });
+    p.items.forEach(it=>{ it.obj.visible=p.show; });
+  });
+  $$('#pane-teile li').forEach(li=>li.classList.toggle('sel',li.dataset.id===S.sel));
+}
+function theme(){
+  renderer.setClearColor(new THREE.Color(css('--stage')||'#f5f7fa'),1);
+  const e=lin(css('--edge')||'#1b2733'); order.forEach(p=>{ if(p.id!=='saiten') p.lines.forEach(l=>l.color.copy(e)); });
+  floorMat.color.copy(lin(css('--floor')||'#b9c4d0')); accentCol.copy(lin(css('--accent')||'#1d5bb8')); style();
+}
+
+// ---------------------------------------------------------------- Kamera
+let camAnim=null;
+function frame(ids,dir,pad){
+  root.updateMatrixWorld(true); const bb=new THREE.Box3();
+  ids.forEach(id=>parts[id].items.forEach(it=>{ if(it.obj.visible) bb.expandByObject(it.obj); }));
+  if(bb.isEmpty()) return; const sp=bb.getBoundingSphere(new THREE.Sphere());
+  const asp=Math.min(1,camera.aspect), dist=sp.radius/Math.sin(camera.fov*DEG/2)/asp*(pad||1.02);
+  const to=sp.center.clone().add(dir.clone().normalize().multiplyScalar(dist));
+  if(reduce||!camAnim&&camera.position.lengthSq()===0){ camera.position.copy(to); controls.target.copy(sp.center); controls.update(); return; }
+  camAnim={t0:performance.now(),p0:camera.position.clone(),p1:to,c0:controls.target.clone(),c1:sp.center.clone()};
+}
+const GRIP=['sattel','gehaeuse','kralle','ball','anschlag','sschraube'];
+const VIEWS={
+  greifer:()=>frame(GRIP,V(.62,.22,-.78),.98),
+  innen:()=>{ setXray(true); frame(['gehaeuse','sattel','kralle'],V(1,.1,-.22),.9); },
+  schlaeger:()=>frame(['schlaeger','kralle','ball'],V(.45,.05,-.9),.95)
+};
+
+// ---------------------------------------------------------------- Beschriftung
+const labels=$('#labels'), bals={};
+order.forEach(p=>{ if(!p.pos) return; const b=document.createElement('button'); b.className='bal'; b.textContent=p.pos; b.title=p.name;
+  b.setAttribute('aria-label','Position '+p.pos+': '+p.name); b.addEventListener('click',()=>select(p.id)); labels.appendChild(b); bals[p.id]=b; });
+const tmp=new THREE.Vector3();
+function placeLabels(){
+  const w=renderer.domElement.clientWidth, h=renderer.domElement.clientHeight, placed=[];
+  const list=order.filter(p=>p.pos).sort((a,b)=>(b.id===S.sel)-(a.id===S.sel)||a.pos-b.pos);
+  list.forEach(p=>{ const b=bals[p.id]; let vis=S.nums&&p.show; let x=0,y=0;
+    if(vis){ p.anchor.getWorldPosition(tmp).project(camera); x=(tmp.x*.5+.5)*w; y=(-tmp.y*.5+.5)*h;
+      vis=tmp.z<1&&x>8&&x<w-8&&y>8&&y<h-8;
+      if(vis&&p.id!==S.sel) for(let i=0;i<placed.length;i++){ if(Math.abs(placed[i][0]-x)<21&&Math.abs(placed[i][1]-y)<21){ vis=false; break; } } }
+    b.hidden=!vis; if(vis){ placed.push([x,y]); b.style.left=x+'px'; b.style.top=y+'px';
+      const on=p.id===S.sel; b.classList.toggle('on',on); b.textContent=on?p.pos+'  '+p.name:p.pos; } });
+}
+
+// ---------------------------------------------------------------- Auswahl
+function select(id){ S.sel=(S.sel===id?null:id); style();
+  if(S.sel&&S.tab==='teile'){ const li=document.querySelector('#pane-teile li[data-id="'+S.sel+'"]'); if(li) li.scrollIntoView({block:'nearest'}); } }
+const ray=new THREE.Raycaster(), ptr=new THREE.Vector2(); let down=null;
+renderer.domElement.addEventListener('pointerdown',e=>{ down=[e.clientX,e.clientY]; });
+renderer.domElement.addEventListener('pointerup',e=>{ if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5) return;
+  const r=renderer.domElement.getBoundingClientRect(); ptr.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1); ray.setFromCamera(ptr,camera);
+  const ms=[]; order.forEach(p=>{ if(p.show&&p.pos) p.meshes.forEach(m=>ms.push(m)); });
+  const hits=ray.intersectObjects(ms,false); if(!hits.length){ if(S.sel){ S.sel=null; style(); } return; }
+  let hit=hits[0]; if(S.xray) for(let i=0;i<hits.length;i++){ if(hits[i].object.userData.part.id!=='gehaeuse'){ hit=hits[i]; break; } }
+  select(hit.object.userData.part.id); });
+
+// ---------------------------------------------------------------- Bewegung
+let move=null;
+function moveTo(target,ms,then){ if(reduce){ S.theta=target; pose(); syncGrip(); if(then) then(); return; }
+  move={t0:performance.now(),a:S.theta,b:target,ms:ms||900,then:then}; }
+function syncGrip(){ $('#grip').textContent=S.theta<10?'Öffnen':'Greifen'; }
+$('#grip').addEventListener('click',()=>moveTo(S.theta<10?K.swing:0));
+$('#explode').addEventListener('input',e=>{ S.E=e.target.value/100; layout(); });
+function setXray(v){ S.xray=v; $('#xray').checked=v; style(); }
+$('#xray').addEventListener('change',e=>setXray(e.target.checked));
+$('#nums').addEventListener('change',e=>{ S.nums=e.target.checked; });
+$$('.chip').forEach(b=>b.addEventListener('click',()=>VIEWS[b.dataset.view]()));
+$('#play').addEventListener('click',()=>{ VIEWS.innen(); const seq=[K.swing,0,K.swing,0]; (function nx(){ if(seq.length) moveTo(seq.shift(),1100,()=>setTimeout(nx,350)); })(); });
+
+// ---------------------------------------------------------------- Zusammenbau
+const ALL=order.map(p=>p.id);
+const same=(ids,v)=>{ const o={}; ids.forEach(i=>o[i]=v); return o; };
+const INHALT=['gehaeuse','kralle','spule','koppel','anschlag','deck','servo','horn','pico','lader','stepup','lipo','schalter','bolzen'];
+const STEPS=[
+ {t:'Elektronik auf den Träger',show:['deck','pico','lader','stepup','lipo'],focus:['pico','lader','stepup','lipo'],dir:V(.5,.6,-.65),off:Object.assign(same(['pico','lader','stepup'],[0,0,-12]),{lipo:[0,0,12]}),
+  need:'Elektronikträger (7), Pico (11), Lademodul (12), Step-Up (13), Akku (14)',
+  text:'<p>Zuerst alles nach Schaltplan verlöten und das Programm auf den Pico spielen.</p><p>Pico, Lademodul und Step-Up kommen auf die Oberseite des Trägers. Beide USB-Buchsen zeigen zur selben Schmalseite. Der Akku klebt auf der Unterseite.</p>'},
+ {t:'Antrieb vormontieren',show:['servo','horn','koppel','spule'],focus:['horn','koppel','spule'],dir:V(1,.15,-.35),
+  need:'Servo (9), Servohorn (10), Koppelstange (5), Schieber (4), 2× M2×8',
+  text:'<p>Servo einschalten, damit er auf „offen“ steht. Horn aufstecken und festschrauben.</p><p>Koppelstange mit je einer M2×8 am Horn und an der Lasche des Schiebers befestigen. Alles muss sich leicht drehen. Das geht nur außerhalb des Gehäuses.</p>'},
+ {t:'Antrieb ins Gehäuse setzen',show:['gehaeuse','servo','horn','koppel','spule'],focus:['servo','spule'],dir:V(1,.2,-.3),xray:true,off:same(['servo','horn','koppel','spule'],[0,0,-48]),frame:['gehaeuse','servo','spule'],
+  need:'Gehäuse (2), 1 Kabelbinder',
+  text:'<p>Kabelbinder durch den Schlitz im Servobett fädeln. Dann Servo und Schieber zusammen von oben einsetzen.</p><p>Die Servolaschen gleiten in die Nuten, der Schieber in die runde Tasche. Kabelbinder schließen.</p>'},
+ {t:'Krallen einsetzen',show:['gehaeuse','servo','horn','koppel','spule','kralle','bolzen'],focus:['kralle','bolzen'],dir:V(.55,-.5,-.65),xray:true,loc:{kralle:.8,bolzen:1},
+  need:'4 Krallen (3), 4 Gelenkschrauben M3×25 (17)',
+  text:'<p>Jede Kralle von außen in ihren Schlitz schieben, bis die Nase im Schieber sitzt.</p><p>Gelenkschraube durch den seitlichen Kanal eindrehen. Nur anlegen: die Kralle muss frei schwingen.</p>'},
+ {t:'Anschlagring aufkleben',show:['gehaeuse','servo','horn','koppel','spule','kralle','bolzen','anschlag'],focus:['anschlag'],dir:V(.4,-.75,-.5),xray:true,loc:{anschlag:.9},frame:['gehaeuse','kralle','anschlag'],
+  need:'Anschlagring (6), Kleber, Schrumpfschlauch',
+  text:'<p>Ring mittig unter die Greiferbasis kleben, die Mulde zeigt zum Ball.</p><p>Schrumpfschlauch auf die vier Krallenspitzen, das gibt Halt am Filz.</p>'},
+ {t:'Elektronik einlegen',show:['gehaeuse','servo','horn','koppel','spule','kralle','bolzen','anschlag','deck','pico','lader','stepup','lipo','schalter'],focus:['deck','schalter'],dir:V(-.7,.55,-.45),xray:true,off:same(['deck','pico','lader','stepup','lipo'],[0,0,-40]),loc:{schalter:.8},frame:['gehaeuse','deck','schalter'],
+  need:'bestückter Träger, Schiebeschalter (15), Schaumstoff',
+  text:'<p>Servostecker anschließen. Träger auf die vier Auflagen legen, Akku nach unten.</p><p>Schalter in die Wandöffnung kleben. Das Tasterkabel läuft durch die Kerbe daneben nach außen.</p>'},
+ {t:'Sattel mit einspannen',show:['schlaeger','saiten','sattel'],focus:['sattel','saiten'],dir:V(.5,.25,-.82),frame:['sattel'],pad:2.6,
+  need:'Sattel (1), 4 Muttern M3, Moosgummi, Saite',
+  text:'<p>Muttern in die vier Taschen des Sattels stecken. Sattel mit etwas Moosgummi auf die Rahmenspitze setzen.</p><p>Beim Bespannen die 6 mittleren Längssaiten durch Sattel und Rahmen führen. Die drei Schlaufen liegen in der Nut und ziehen den Sattel fest. 10 bis 15 kg Zug reichen.</p>'},
+ {t:'Gehäuse aufstecken',show:ALL.filter(i=>['halter','taster','kabel','ball','boden'].indexOf(i)<0),focus:['gehaeuse','sschraube'],dir:V(.62,.22,-.78),frame:GRIP,off:same(INHALT,[0,0,42]),loc:{sschraube:.8},
+  need:'4 Sattelschrauben M3×8 (18)',
+  text:'<p>Gehäuse von unten über den Sattel schieben, bis die Stirnwände anliegen.</p><p>Vier Schrauben seitlich durch die Schürzen in die Muttern drehen. So lässt sich der Greifer später abnehmen, ohne die Bespannung zu öffnen.</p>'},
+ {t:'Taster an den Griff',show:ALL.filter(i=>['ball','boden'].indexOf(i)<0),focus:['halter','taster','kabel'],dir:V(.5,.02,-.86),frame:['schlaeger','kralle'],loc:{taster:.6},
+  need:'Tasterhalter (8), Taster (16), Kabel (19), Kabelbinder',
+  text:'<p>Halter mit zwei Kabelbindern am Schaft über dem Griff befestigen, Taster einstecken.</p><p>Das Kabel läuft an der Rahmenseite entlang zum Gehäuse. Alle 10 bis 15 cm ein Kabelbinder.</p>'},
+ {t:'Einstellen und testen',show:ALL,focus:null,dir:V(.62,.22,-.78),frame:GRIP.concat(['boden']),play:true,
+  need:'Micro-USB-Kabel, Tennisball',
+  text:'<p>Schläger auf den Ball drücken, bis er am Anschlagring anliegt. Taster drücken: der Greifer schließt.</p><p>Hält er den Ball nicht fest, im Programm den Wert für „zu“ in 5°-Schritten erhöhen. Brummt der Servo, ein paar Grad zurück.</p>'}
+];
+function applyTab(){
+  $$('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===S.tab));
+  ['teile','bau','funktion'].forEach(n=>{ $('#pane-'+n).hidden=(n!==S.tab); });
+  if(S.tab==='bau') applyStep(); else { order.forEach(p=>p.show=true); S.focus=null; style(); }
+}
+function applyStep(){
+  const st=STEPS[S.step]; S.sel=null; S.focus=st.focus; order.forEach(p=>p.show=st.show.indexOf(p.id)>=0);
+  if(st.xray!==undefined) S.xray=st.xray; $('#xray').checked=S.xray;
+  S.E=0; $('#explode').value=0; move=null; S.theta=0; pose(); syncGrip(); style();
+  const el=$('#pane-bau');
+  el.innerHTML='<div class="steptop"><span class="count">Schritt '+(S.step+1)+' von '+STEPS.length+'</span></div><h3>'+st.t+'</h3><div class="need"><b>Du brauchst:</b> '+st.need+'</div>'+st.text+
+    '<div class="nav"><button id="prev"'+(S.step?'':' disabled')+'>Zurück</button><button class="pri" id="next"'+(S.step<STEPS.length-1?'':' disabled')+'>Weiter</button></div>';
+  $('#prev').addEventListener('click',()=>{ S.step--; applyStep(); }); $('#next').addEventListener('click',()=>{ S.step++; applyStep(); });
+  el.scrollTop=0; frame(st.frame||st.focus||st.show,st.dir,st.pad||1.15);
+  if(st.play){ const seq=[K.swing,0]; setTimeout(function nx(){ if(S.tab==='bau'&&STEPS[S.step].play&&seq.length) moveTo(seq.shift(),1100,()=>setTimeout(nx,500)); },900); }
+}
+$$('.tab').forEach(t=>t.addEventListener('click',()=>{ S.tab=t.dataset.tab; applyTab(); if(S.tab!=='bau'){ S.E=+$('#explode').value/100; layout(); } }));
+
+function buildPanels(){
+  const el=$('#pane-teile'); let h='';
+  const defs=(typeof order!=='undefined'?order:[]).filter(p=>p.pos);
+  [['druck','Druckteile (PETG)'],['kauf','Kaufteile']].forEach(k=>{ h+='<h2>'+k[1]+'</h2><ul class="list">';
+    defs.filter(p=>p.kind===k[0]).forEach(p=>{ h+='<li data-id="'+p.id+'"><button class="row"><span class="n">'+p.pos+'</span><span class="sw" style="background:#'+('00000'+p.color.toString(16)).slice(-6)+'"></span><span class="nm">'+p.name+'</span><span class="q">'+p.qty+'×</span></button>'+
+      '<div class="det"><dl><dt>Sitzt</dt><dd>'+p.wo+'</dd><dt>Hält durch</dt><dd>'+p.wie+'</dd></dl></div></li>'; });
+    h+='</ul>'; });
+  el.innerHTML=h+'<p class="note" style="margin-top:12px">Teil in der Liste oder im Modell antippen: es wird hervorgehoben und alles andere blass.</p>';
+  $$('#pane-teile li').forEach(li=>li.querySelector('.row').addEventListener('click',()=>select(li.dataset.id)));
+}
+
+// ---------------------------------------------------------------- Start
+buildPanels();
+function resize(){ const v=$('#view'), w=v.clientWidth, h=v.clientHeight; if(!w||!h) return; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+resize(); theme(); pose(); syncGrip(); VIEWS.greifer();
+new ResizeObserver(resize).observe($('#view'));
+if(window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change',theme);
+new MutationObserver(theme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+(function loop(now){
+  if(move){ const k=Math.min(1,(now-move.t0)/move.ms); S.theta=move.a+(move.b-move.a)*ease(k); pose(); if(k>=1){ const th=move.then; move=null; syncGrip(); if(th) th(); } }
+  if(camAnim){ const k=Math.min(1,(now-camAnim.t0)/650), e=ease(k); camera.position.lerpVectors(camAnim.p0,camAnim.p1,e); controls.target.lerpVectors(camAnim.c0,camAnim.c1,e); if(k>=1) camAnim=null; }
+  controls.update(); renderer.render(scene,camera); placeLabels(); requestAnimationFrame(loop);
+})(performance.now());
+})();
+</script>

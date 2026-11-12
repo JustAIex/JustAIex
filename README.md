@@ -7,3 +7,4 @@ Kunstprojekt: ein 4‑Finger‑Greifer, der an der Schlägerspitze mit eingespan
 - `stl/` – Druckdateien
 - `firmware/main.py` – Steuerprogramm für den Raspberry Pi Pico (MicroPython)
 - `bilder/` – Vorschaubilder
+- `viewer/` – interaktive 3D-Ansicht mit nummerierten Teilen und Zusammenbau-Schritten (`build.py` erzeugt `ballgreifer_3d.html` aus dem Modell)

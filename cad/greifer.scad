@@ -367,3 +367,15 @@ if(part=="anschlag") anschlag();
 if(part=="deck")     translate([0,0,-z_deck0+deck_t]) deck();
 if(part=="koppel")   koppel();
 if(part=="taster")   taster();
+
+// ---------------------------------------------------------------- Teile in Einbaulage fuer die 3D-Ansicht (viewer/build.py)
+if(part=="v_sattel")   sattel();
+if(part=="v_gehaeuse") gehaeuse();
+if(part=="v_kralle")   kralle(0);
+if(part=="v_spule")    spule();
+if(part=="v_koppel")   translate([2.5,0,0]) rotate([0,-90,0]) koppel();
+if(part=="v_anschlag") anschlag();
+if(part=="v_deck")     deck();
+if(part=="v_taster")   taster();
+if(part=="v_servo")    servo_dummy();
+if(part=="v_horn")     hull(){ rotate([0,90,0]) cylinder(d=7,h=1.6); translate([0,12,0]) rotate([0,90,0]) cylinder(d=4,h=1.6); }
